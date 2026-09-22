@@ -17,58 +17,52 @@ class AIVoicePoetryStudio extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6B21A8),
         ),
-        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
       ),
-      home: const HomeScreen(),
+      home: const PoetryStudio(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class PoetryStudio extends StatelessWidget {
+  const PoetryStudio({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'AI Voice & Poetry Studio',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Al Voice & Poetry Studio'),
         centerTitle: true,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 30),
+            const SizedBox(height: 40),
 
             const Text(
-              'Lafzon ko Awaaz Do',
+              'Poetry Studio',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF6B21A8),
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             const Text(
-              'AI Voice & Poetry Studio',
+              'Apni poetry ko natural AI voice mein convert karein.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 17,
+                fontSize: 15,
                 color: Colors.black54,
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
 
             Card(
-              elevation: 3,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -108,7 +102,15 @@ class HomeScreen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const PoetryEditorScreen(),
+                            ),
+                          );
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF6B21A8),
                           foregroundColor: Colors.white,
@@ -129,6 +131,132 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PoetryEditorScreen extends StatefulWidget {
+  const PoetryEditorScreen({super.key});
+
+  @override
+  State<PoetryEditorScreen> createState() =>
+      _PoetryEditorScreenState();
+}
+
+class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
+  final TextEditingController _poetryController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    _poetryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Poetry Editor'),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Apni Poetry Likhein',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _poetryController,
+              maxLines: 10,
+              decoration: InputDecoration(
+                hintText: 'Yahan apni poetry likhein...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignLabelWithHint: true,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              'Voice Settings',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: const [
+                    ListTile(
+                      leading: Icon(Icons.record_voice_over),
+                      title: Text('AI Voice'),
+                      subtitle: Text(
+                        'Voice options baad mein add ki jayengi',
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.speed),
+                      title: Text('Voice Style'),
+                      subtitle: Text(
+                        'Natural / Emotional',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Voice generation next phase mein add hogi.',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.play_arrow),
+                label: const Text(
+                  'Generate Voice',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6B21A8),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
