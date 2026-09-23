@@ -40,7 +40,6 @@ class PoetryStudio extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 40),
-
             const Text(
               'Poetry Studio',
               textAlign: TextAlign.center,
@@ -49,9 +48,7 @@ class PoetryStudio extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 10),
-
             const Text(
               'Apni poetry ko natural AI voice mein convert karein.',
               textAlign: TextAlign.center,
@@ -60,9 +57,7 @@ class PoetryStudio extends StatelessWidget {
                 color: Colors.black54,
               ),
             ),
-
             const SizedBox(height: 30),
-
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -76,9 +71,7 @@ class PoetryStudio extends StatelessWidget {
                       size: 60,
                       color: Color(0xFF6B21A8),
                     ),
-
                     const SizedBox(height: 15),
-
                     const Text(
                       'Poetry Studio',
                       style: TextStyle(
@@ -86,9 +79,7 @@ class PoetryStudio extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(height: 8),
-
                     const Text(
                       'Apni poetry ko natural AI voice mein convert karein.',
                       textAlign: TextAlign.center,
@@ -97,9 +88,7 @@ class PoetryStudio extends StatelessWidget {
                         color: Colors.black54,
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -151,7 +140,13 @@ class PoetryEditorScreen extends StatefulWidget {
 }
 
 class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
+  final TextEditingController _descriptionController =
+      TextEditingController();
+
   final TextEditingController _poetryController =
+      TextEditingController();
+
+  final TextEditingController _voiceDirectionController =
       TextEditingController();
 
   final FlutterTts _flutterTts = FlutterTts();
@@ -209,9 +204,16 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
   }
 
   Future<void> _generateVoice() async {
-    final text = _poetryController.text.trim();
+    final description =
+        _descriptionController.text.trim();
 
-    if (text.isEmpty) {
+    final poetry =
+        _poetryController.text.trim();
+
+    final voiceDirection =
+        _voiceDirectionController.text.trim();
+
+    if (poetry.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Pehle apni poetry likhein.'),
@@ -222,7 +224,19 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
 
     await _flutterTts.stop();
 
-    await _flutterTts.speak(text);
+    // Current version uses device TTS.
+    // Description and Voice Direction are saved as user instructions
+    // and will be connected to the real AI voice engine in the next phase.
+
+    String speechText = poetry;
+
+    if (description.isNotEmpty ||
+        voiceDirection.isNotEmpty) {
+      speechText =
+          '$poetry';
+    }
+
+    await _flutterTts.speak(speechText);
   }
 
   Future<void> _stopVoice() async {
@@ -238,7 +252,9 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
   @override
   void dispose() {
     _flutterTts.stop();
+    _descriptionController.dispose();
     _poetryController.dispose();
+    _voiceDirectionController.dispose();
     super.dispose();
   }
 
@@ -255,6 +271,41 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
+              'Voice Description',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            const Text(
+              'Batayein ke voice ka mood aur feeling kaisi honi chahiye.',
+              style: TextStyle(
+                color: Colors.black54,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText:
+                    'Misal: Udaas, gehri aur dil ko chhoo lene wali poetry...',
+                prefixIcon: const Icon(Icons.description),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignLabelWithHint: true,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            const Text(
               'Apni Poetry Likhein',
               style: TextStyle(
                 fontSize: 22,
@@ -268,7 +319,8 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
               controller: _poetryController,
               maxLines: 10,
               decoration: InputDecoration(
-                hintText: 'Yahan apni poetry likhein...',
+                hintText:
+                    'Yahan apni poetry likhein...',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -276,7 +328,42 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
+
+            const Text(
+              'Voice Direction / Bolne Ka Andaz',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            const Text(
+              'AI ko batayein ke poetry kis tarah bolni hai.',
+              style: TextStyle(
+                color: Colors.black54,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _voiceDirectionController,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText:
+                    'Misal: Aahista, jazbati, dard bhari awaaz, aham alfaaz par zor...',
+                prefixIcon: const Icon(Icons.record_voice_over),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignLabelWithHint: true,
+              ),
+            ),
+
+            const SizedBox(height: 24),
 
             const Text(
               'Voice Settings',
@@ -294,10 +381,12 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
                 child: Column(
                   children: const [
                     ListTile(
-                      leading: Icon(Icons.record_voice_over),
+                      leading: Icon(
+                        Icons.record_voice_over,
+                      ),
                       title: Text('AI Voice'),
                       subtitle: Text(
-                        'Device TTS Voice',
+                        'Device TTS Voice - Temporary',
                       ),
                     ),
                     ListTile(
@@ -305,6 +394,13 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
                       title: Text('Voice Style'),
                       subtitle: Text(
                         'Natural / Emotional',
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.threed_rotation),
+                      title: Text('3D / Spatial Voice'),
+                      subtitle: Text(
+                        'AI Spatial Voice - Next Phase',
                       ),
                     ),
                   ],
@@ -317,7 +413,8 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: _isSpeaking ? null : _generateVoice,
+                onPressed:
+                    _isSpeaking ? null : _generateVoice,
                 icon: const Icon(Icons.play_arrow),
                 label: const Text(
                   'Generate Voice',
@@ -327,10 +424,12 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6B21A8),
+                  backgroundColor:
+                      const Color(0xFF6B21A8),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius:
+                        BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -341,7 +440,8 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
             SizedBox(
               height: 52,
               child: OutlinedButton.icon(
-                onPressed: _isSpeaking ? _stopVoice : null,
+                onPressed:
+                    _isSpeaking ? _stopVoice : null,
                 icon: const Icon(Icons.stop),
                 label: const Text(
                   'Stop Voice',
