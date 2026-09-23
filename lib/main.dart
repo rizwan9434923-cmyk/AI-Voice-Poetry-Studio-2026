@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 void main() {
   runApp(const AIVoicePoetryStudio());
@@ -153,8 +154,90 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
   final TextEditingController _poetryController =
       TextEditingController();
 
+  final FlutterTts _flutterTts = FlutterTts();
+
+  bool _isSpeaking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupTts();
+  }
+
+  Future<void> _setupTts() async {
+    await _flutterTts.setSpeechRate(0.45);
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+
+    _flutterTts.setStartHandler(() {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = true;
+        });
+      }
+    });
+
+    _flutterTts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    });
+
+    _flutterTts.setCancelHandler(() {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    });
+
+    _flutterTts.setErrorHandler((message) {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Voice error: $message'),
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _generateVoice() async {
+    final text = _poetryController.text.trim();
+
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pehle apni poetry likhein.'),
+        ),
+      );
+      return;
+    }
+
+    await _flutterTts.stop();
+
+    await _flutterTts.speak(text);
+  }
+
+  Future<void> _stopVoice() async {
+    await _flutterTts.stop();
+
+    if (mounted) {
+      setState(() {
+        _isSpeaking = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _flutterTts.stop();
     _poetryController.dispose();
     super.dispose();
   }
@@ -214,7 +297,7 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
                       leading: Icon(Icons.record_voice_over),
                       title: Text('AI Voice'),
                       subtitle: Text(
-                        'Voice options baad mein add ki jayengi',
+                        'Device TTS Voice',
                       ),
                     ),
                     ListTile(
@@ -234,15 +317,7 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Voice generation next phase mein add hogi.',
-                      ),
-                    ),
-                  );
-                },
+                onPressed: _isSpeaking ? null : _generateVoice,
                 icon: const Icon(Icons.play_arrow),
                 label: const Text(
                   'Generate Voice',
@@ -256,6 +331,23 @@ class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: _isSpeaking ? _stopVoice : null,
+                icon: const Icon(Icons.stop),
+                label: const Text(
+                  'Stop Voice',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
