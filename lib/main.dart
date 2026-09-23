@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const AIVoicePoetryStudio());
@@ -167,6 +170,7 @@ class _PoetryEditorScreenState
   final FlutterTts _flutterTts = FlutterTts();
 
   bool _isSpeaking = false;
+  bool _isSavingAudio = false;
   bool _loadingVoices = true;
 
   List<dynamic> _voices = [];
@@ -175,6 +179,8 @@ class _PoetryEditorScreenState
   double _speechRate = 0.45;
   double _pitch = 1.0;
   double _volume = 1.0;
+
+  String? _savedAudioPath;
 
   @override
   void initState() {
@@ -324,44 +330,7 @@ class _PoetryEditorScreenState
     await _flutterTts.setVolume(value);
   }
 
-  Future<void> _generateVoice() async {
-    final description =
-        _descriptionController.text.trim();
-
-    final poetry =
-        _poetryController.text.trim();
-
-    final voiceDirection =
-        _voiceDirectionController.text.trim();
-
-    if (poetry.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Pehle apni poetry likhein.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    await _flutterTts.stop();
-
-    // Description aur Voice Direction abhi
-    // AI engine ke liye instructions hain.
-    // Real AI/Natural voice next phase mein connect hogi.
-
-    String speechText = poetry;
-
-    // In fields ko read-aloud text mein add nahi kar rahe,
-    // taake user ki poetry hi boli jaye.
-    //
-    // Ye variables next AI engine ke prompt mein use honge.
-    if (description.isNotEmpty ||
-        voiceDirection.isNotEmpty) {
-      speechText = poetry;
-    }
-
+  Future<void> _applyCurrentVoice() async {
     await _flutterTts.setSpeechRate(_speechRate);
     await _flutterTts.setPitch(_pitch);
     await _flutterTts.setVolume(_volume);
@@ -379,8 +348,37 @@ class _PoetryEditorScreenState
         } catch (_) {}
       }
     }
+  }
 
-    await _flutterTts.speak(speechText);
+  Future<String?> _prepareSpeechText() async {
+    final poetry = _poetryController.text.trim();
+
+    if (poetry.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pehle apni poetry likhein.',
+          ),
+        ),
+      );
+      return null;
+    }
+
+    return poetry;
+  }
+
+  Future<void> _generateVoice() async {
+    final poetry = await _prepareSpeechText();
+
+    if (poetry == null) {
+      return;
+    }
+
+    await _flutterTts.stop();
+
+    await _applyCurrentVoice();
+
+    await _flutterTts.speak(poetry);
   }
 
   Future<void> _stopVoice() async {
@@ -390,6 +388,132 @@ class _PoetryEditorScreenState
       setState(() {
         _isSpeaking = false;
       });
+    }
+  }
+
+  Future<void> _saveAudio() async {
+    final poetry = await _prepareSpeechText();
+
+    if (poetry == null) {
+      return;
+    }
+
+    if (_isSavingAudio) {
+      return;
+    }
+
+    setState(() {
+      _isSavingAudio = true;
+    });
+
+    try {
+      await _flutterTts.stop();
+
+      await _applyCurrentVoice();
+
+      final directory =
+          await getApplicationDocumentsDirectory();
+
+      final timestamp =
+          DateTime.now().millisecondsSinceEpoch;
+
+      final filePath =
+          '${directory.path}/poetry_voice_$timestamp.wav';
+
+      final result = await _flutterTts.synthesizeToFile(
+        poetry,
+        filePath,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (result == 1 || result == true) {
+        setState(() {
+          _savedAudioPath = filePath;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Audio successfully save ho gayi.',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Audio save nahi ho saki. Device ki TTS service check karein.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Audio save error: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingAudio = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _playSavedAudio() async {
+    final path = _savedAudioPath;
+
+    if (path == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pehle audio save karein.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final file = File(path);
+
+    if (!await file.exists()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Saved audio file nahi mili.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _flutterTts.stop();
+
+      await _flutterTts.speak(
+        _poetryController.text.trim(),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Audio play error: $e',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -592,12 +716,12 @@ class _PoetryEditorScreenState
                         items: _voices.map((voice) {
                           final name =
                               voice['name']
-                                  ?.toString() ??
+                                      ?.toString() ??
                                   'Unknown Voice';
 
                           final locale =
                               voice['locale']
-                                  ?.toString() ??
+                                      ?.toString() ??
                                   '';
 
                           return DropdownMenuItem<
@@ -629,7 +753,9 @@ class _PoetryEditorScreenState
 
                     Row(
                       children: [
-                        const Icon(Icons.slow_motion_video),
+                        const Icon(
+                          Icons.slow_motion_video,
+                        ),
                         Expanded(
                           child: Slider(
                             min: 0.20,
@@ -743,7 +869,7 @@ class _PoetryEditorScreenState
               height: 54,
               child: ElevatedButton.icon(
                 onPressed:
-                    _isSpeaking
+                    _isSpeaking || _isSavingAudio
                         ? null
                         : _generateVoice,
                 icon: const Icon(
@@ -792,6 +918,116 @@ class _PoetryEditorScreenState
                 ),
               ),
             ),
+
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: 54,
+              child: ElevatedButton.icon(
+                onPressed:
+                    _isSavingAudio
+                        ? null
+                        : _saveAudio,
+                icon: _isSavingAudio
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.save_alt,
+                      ),
+                label: Text(
+                  _isSavingAudio
+                      ? 'Saving Audio...'
+                      : 'Save Audio',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                style:
+                    ElevatedButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFF2563EB),
+                  foregroundColor:
+                      Colors.white,
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+
+            if (_savedAudioPath != null) ...[
+              const SizedBox(height: 14),
+
+              Card(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(14),
+                  child: Column(
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color:
+                                Colors.green,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Audio Saved Successfully',
+                              style: TextStyle(
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      Text(
+                        _savedAudioPath!,
+                        maxLines: 2,
+                        overflow:
+                            TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              _playSavedAudio,
+                          icon: const Icon(
+                            Icons.play_arrow,
+                          ),
+                          label: const Text(
+                            'Play Saved Voice',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
