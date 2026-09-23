@@ -34,7 +34,7 @@ class PoetryStudio extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Al Voice & Poetry Studio'),
+        title: const Text('AI Voice & Poetry Studio'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -43,7 +43,6 @@ class PoetryStudio extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 40),
-
             const Text(
               'Poetry Studio',
               textAlign: TextAlign.center,
@@ -52,20 +51,16 @@ class PoetryStudio extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 10),
-
             const Text(
-              'Apni poetry ko voice mein convert karein.',
+              'Convert your poetry into voice.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
                 color: Colors.black54,
               ),
             ),
-
             const SizedBox(height: 30),
-
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -79,9 +74,7 @@ class PoetryStudio extends StatelessWidget {
                       size: 60,
                       color: Color(0xFF6B21A8),
                     ),
-
                     const SizedBox(height: 15),
-
                     const Text(
                       'Poetry Studio',
                       style: TextStyle(
@@ -89,20 +82,16 @@ class PoetryStudio extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(height: 8),
-
                     const Text(
-                      'Apni poetry ko voice mein convert karein.',
+                      'Create a voice from your poetry.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 15,
                         color: Colors.black54,
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -189,49 +178,59 @@ class _PoetryEditorScreenState
   }
 
   Future<void> _setupTts() async {
-    await _flutterTts.setSpeechRate(_speechRate);
-    await _flutterTts.setVolume(_volume);
-    await _flutterTts.setPitch(_pitch);
+    try {
+      await _flutterTts.awaitSpeakCompletion(true);
 
-    await _loadVoices();
+      await _flutterTts.setSpeechRate(_speechRate);
+      await _flutterTts.setVolume(_volume);
+      await _flutterTts.setPitch(_pitch);
 
-    _flutterTts.setStartHandler(() {
+      await _loadVoices();
+
+      _flutterTts.setStartHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = true;
+          });
+        }
+      });
+
+      _flutterTts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+        }
+      });
+
+      _flutterTts.setCancelHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+        }
+      });
+
+      _flutterTts.setErrorHandler((message) {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Voice error: $message'),
+            ),
+          );
+        }
+      });
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _isSpeaking = true;
+          _loadingVoices = false;
         });
       }
-    });
-
-    _flutterTts.setCompletionHandler(() {
-      if (mounted) {
-        setState(() {
-          _isSpeaking = false;
-        });
-      }
-    });
-
-    _flutterTts.setCancelHandler(() {
-      if (mounted) {
-        setState(() {
-          _isSpeaking = false;
-        });
-      }
-    });
-
-    _flutterTts.setErrorHandler((message) {
-      if (mounted) {
-        setState(() {
-          _isSpeaking = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Voice error: $message'),
-          ),
-        );
-      }
-    });
+    }
   }
 
   Future<void> _loadVoices() async {
@@ -241,7 +240,8 @@ class _PoetryEditorScreenState
       if (voices is List) {
         final filteredVoices = voices.where((voice) {
           if (voice is Map) {
-            return voice['name'] != null;
+            return voice['name'] != null &&
+                voice['locale'] != null;
           }
           return false;
         }).toList();
@@ -251,7 +251,26 @@ class _PoetryEditorScreenState
             _voices = filteredVoices;
             _loadingVoices = false;
 
-            if (_voices.isNotEmpty) {
+            dynamic urduVoice;
+
+            for (final voice in _voices) {
+              final locale =
+                  voice['locale']?.toString().toLowerCase() ?? '';
+
+              final name =
+                  voice['name']?.toString().toLowerCase() ?? '';
+
+              if (locale == 'ur-pk' ||
+                  locale.startsWith('ur-pk') ||
+                  name.contains('ur-pk')) {
+                urduVoice = voice;
+                break;
+              }
+            }
+
+            if (urduVoice != null) {
+              _selectedVoice = urduVoice;
+            } else if (_voices.isNotEmpty) {
               _selectedVoice = _voices.first;
             }
           });
@@ -263,7 +282,7 @@ class _PoetryEditorScreenState
           });
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _loadingVoices = false;
@@ -284,8 +303,8 @@ class _PoetryEditorScreenState
 
     try {
       await _flutterTts.setVoice({
-        'name': name,
-        'locale': locale,
+        'name': name.toString(),
+        'locale': locale.toString(),
       });
 
       if (mounted) {
@@ -293,12 +312,12 @@ class _PoetryEditorScreenState
           _selectedVoice = voice;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Ye voice device par select nahi ho saki.',
+              'This voice could not be selected on this device.',
             ),
           ),
         );
@@ -342,12 +361,129 @@ class _PoetryEditorScreenState
       if (name != null && locale != null) {
         try {
           await _flutterTts.setVoice({
-            'name': name,
-            'locale': locale,
+            'name': name.toString(),
+            'locale': locale.toString(),
           });
         } catch (_) {}
       }
     }
+  }
+
+  Future<void> _forceUrduPakistanVoice() async {
+    dynamic urduVoice;
+
+    for (final voice in _voices) {
+      if (voice is Map) {
+        final locale =
+            voice['locale']?.toString().toLowerCase() ?? '';
+
+        final name =
+            voice['name']?.toString().toLowerCase() ?? '';
+
+        if (locale == 'ur-pk' ||
+            locale.startsWith('ur-pk') ||
+            name.contains('ur-pk')) {
+          urduVoice = voice;
+          break;
+        }
+      }
+    }
+
+    if (urduVoice != null) {
+      final name = urduVoice['name'];
+      final locale = urduVoice['locale'];
+
+      try {
+        await _flutterTts.setLanguage(locale.toString());
+
+        await _flutterTts.setVoice({
+          'name': name.toString(),
+          'locale': locale.toString(),
+        });
+      } catch (_) {}
+    } else {
+      try {
+        await _flutterTts.setLanguage('ur-PK');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _applyExpressionControls() async {
+    final description =
+        _descriptionController.text.trim().toLowerCase();
+
+    final direction =
+        _voiceDirectionController.text.trim().toLowerCase();
+
+    double rate = _speechRate;
+    double pitch = _pitch;
+
+    if (description.contains('sad') ||
+        description.contains('dard') ||
+        description.contains('deep')) {
+      rate = rate.clamp(0.25, 0.40).toDouble();
+      pitch =
+          (pitch - 0.08).clamp(0.50, 1.50).toDouble();
+    }
+
+    if (description.contains('soft')) {
+      rate = rate.clamp(0.25, 0.42).toDouble();
+    }
+
+    if (description.contains('happy') ||
+        description.contains('excited') ||
+        description.contains('purjosh')) {
+      rate = rate.clamp(0.45, 0.65).toDouble();
+      pitch =
+          (pitch + 0.05).clamp(0.50, 1.50).toDouble();
+    }
+
+    if (description.contains('calm')) {
+      rate = rate.clamp(0.30, 0.45).toDouble();
+    }
+
+    if (direction.contains('aahista') ||
+        direction.contains('slow')) {
+      rate = rate.clamp(0.25, 0.38).toDouble();
+    }
+
+    if (direction.contains('tez') ||
+        direction.contains('fast')) {
+      rate = rate.clamp(0.50, 0.75).toDouble();
+    }
+
+    if (direction.contains('deep')) {
+      pitch =
+          (pitch - 0.08).clamp(0.50, 1.50).toDouble();
+    }
+
+    if (direction.contains('soft')) {
+      rate = rate.clamp(0.25, 0.42).toDouble();
+    }
+
+    await _flutterTts.setSpeechRate(rate);
+    await _flutterTts.setPitch(pitch);
+    await _flutterTts.setVolume(_volume);
+  }
+
+  String _preparePoetryForSpeech(String poetry) {
+    var text = poetry.trim();
+
+    if (text.isEmpty) {
+      return '';
+    }
+
+    text = text.replaceAll(RegExp(r'\r\n'), '\n');
+    text = text.replaceAll(RegExp(r'\n{2,}'), '\n');
+
+    text = text.replaceAll('،', '، ');
+    text = text.replaceAll('۔', '۔ ');
+    text = text.replaceAll('؟', '؟ ');
+    text = text.replaceAll('!', '! ');
+
+    text = text.replaceAll(RegExp(r' +'), ' ');
+
+    return text.trim();
   }
 
   Future<String?> _prepareSpeechText() async {
@@ -357,28 +493,44 @@ class _PoetryEditorScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Pehle apni poetry likhein.',
+            'Please enter your poetry first.',
           ),
         ),
       );
+
       return null;
     }
 
-    return poetry;
+    return _preparePoetryForSpeech(poetry);
   }
 
   Future<void> _generateVoice() async {
     final poetry = await _prepareSpeechText();
 
-    if (poetry == null) {
+    if (poetry == null || poetry.isEmpty) {
       return;
     }
 
-    await _flutterTts.stop();
+    try {
+      await _flutterTts.stop();
+      await _forceUrduPakistanVoice();
+      await _applyExpressionControls();
+      await _flutterTts.speak(poetry);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
 
-    await _applyCurrentVoice();
-
-    await _flutterTts.speak(poetry);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Voice error: $e',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _stopVoice() async {
@@ -394,7 +546,7 @@ class _PoetryEditorScreenState
   Future<void> _saveAudio() async {
     final poetry = await _prepareSpeechText();
 
-    if (poetry == null) {
+    if (poetry == null || poetry.isEmpty) {
       return;
     }
 
@@ -409,7 +561,8 @@ class _PoetryEditorScreenState
     try {
       await _flutterTts.stop();
 
-      await _applyCurrentVoice();
+      await _forceUrduPakistanVoice();
+      await _applyExpressionControls();
 
       final directory =
           await getApplicationDocumentsDirectory();
@@ -437,7 +590,7 @@ class _PoetryEditorScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Audio successfully save ho gayi.',
+              'Audio saved successfully.',
             ),
           ),
         );
@@ -445,7 +598,7 @@ class _PoetryEditorScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Audio save nahi ho saki. Device ki TTS service check karein.',
+              'Audio could not be saved. Please check the device TTS service.',
             ),
           ),
         );
@@ -478,10 +631,11 @@ class _PoetryEditorScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Pehle audio save karein.',
+            'Please save the audio first.',
           ),
         ),
       );
+
       return;
     }
 
@@ -491,19 +645,25 @@ class _PoetryEditorScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Saved audio file nahi mili.',
+            'Saved audio file was not found.',
           ),
         ),
       );
+
       return;
     }
 
     try {
       await _flutterTts.stop();
 
-      await _flutterTts.speak(
+      await _forceUrduPakistanVoice();
+      await _applyExpressionControls();
+
+      final poetry = _preparePoetryForSpeech(
         _poetryController.text.trim(),
       );
+
+      await _flutterTts.speak(poetry);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -548,24 +708,20 @@ class _PoetryEditorScreenState
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
-              'Voice ka mood aur feeling batayein.',
+              'Describe the mood and feeling of the voice.',
               style: TextStyle(
                 color: Colors.black54,
               ),
             ),
-
             const SizedBox(height: 12),
-
             TextField(
               controller: _descriptionController,
               maxLines: 3,
               decoration: InputDecoration(
                 hintText:
-                    'Misal: Udaas, gehri aur dil ko chhoo lene wali poetry...',
+                    'Example: Sad, deep and emotional voice...',
                 prefixIcon:
                     const Icon(Icons.description),
                 border: OutlineInputBorder(
@@ -575,25 +731,21 @@ class _PoetryEditorScreenState
                 alignLabelWithHint: true,
               ),
             ),
-
             const SizedBox(height: 24),
-
             const Text(
-              'Apni Poetry Likhein',
+              'Write Your Poetry',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 12),
-
             TextField(
               controller: _poetryController,
               maxLines: 10,
               decoration: InputDecoration(
                 hintText:
-                    'Yahan apni poetry likhein...',
+                    'Write your poetry here...',
                 border: OutlineInputBorder(
                   borderRadius:
                       BorderRadius.circular(16),
@@ -601,35 +753,29 @@ class _PoetryEditorScreenState
                 alignLabelWithHint: true,
               ),
             ),
-
             const SizedBox(height: 24),
-
             const Text(
-              'Voice Direction / Bolne Ka Andaz',
+              'Voice Direction',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
-              'Batayein poetry kis tarah bolni hai.',
+              'Describe how the poetry should be spoken.',
               style: TextStyle(
                 color: Colors.black54,
               ),
             ),
-
             const SizedBox(height: 12),
-
             TextField(
               controller:
                   _voiceDirectionController,
               maxLines: 4,
               decoration: InputDecoration(
                 hintText:
-                    'Misal: Aahista, jazbati, dard bhari awaaz, aham alfaaz par zor...',
+                    'Example: Slow, emotional, deep voice, emphasize important words...',
                 prefixIcon: const Icon(
                   Icons.record_voice_over,
                 ),
@@ -640,9 +786,7 @@ class _PoetryEditorScreenState
                 alignLabelWithHint: true,
               ),
             ),
-
             const SizedBox(height: 28),
-
             const Text(
               'Voice Settings',
               style: TextStyle(
@@ -650,9 +794,7 @@ class _PoetryEditorScreenState
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 12),
-
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -676,9 +818,7 @@ class _PoetryEditorScreenState
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 12),
-
                     if (_loadingVoices)
                       const Padding(
                         padding:
@@ -693,7 +833,7 @@ class _PoetryEditorScreenState
                         padding:
                             EdgeInsets.all(8),
                         child: Text(
-                          'Device ki TTS voices available nahi hain.',
+                          'No TTS voices are available on this device.',
                           style: TextStyle(
                             color: Colors.black54,
                           ),
@@ -740,9 +880,7 @@ class _PoetryEditorScreenState
                           }
                         },
                       ),
-
                     const SizedBox(height: 24),
-
                     const Text(
                       'Speed',
                       style: TextStyle(
@@ -750,7 +888,6 @@ class _PoetryEditorScreenState
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     Row(
                       children: [
                         const Icon(
@@ -772,9 +909,7 @@ class _PoetryEditorScreenState
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 10),
-
                     const Text(
                       'Pitch',
                       style: TextStyle(
@@ -782,7 +917,6 @@ class _PoetryEditorScreenState
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     Row(
                       children: [
                         const Icon(Icons.graphic_eq),
@@ -802,9 +936,7 @@ class _PoetryEditorScreenState
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 10),
-
                     const Text(
                       'Volume',
                       style: TextStyle(
@@ -812,7 +944,6 @@ class _PoetryEditorScreenState
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     Row(
                       children: [
                         const Icon(Icons.volume_up),
@@ -835,9 +966,7 @@ class _PoetryEditorScreenState
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
             Card(
               child: Column(
                 children: const [
@@ -862,9 +991,7 @@ class _PoetryEditorScreenState
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
             SizedBox(
               height: 54,
               child: ElevatedButton.icon(
@@ -897,9 +1024,7 @@ class _PoetryEditorScreenState
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
             SizedBox(
               height: 54,
               child: OutlinedButton.icon(
@@ -918,9 +1043,7 @@ class _PoetryEditorScreenState
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
-
             SizedBox(
               height: 54,
               child: ElevatedButton.icon(
@@ -965,10 +1088,8 @@ class _PoetryEditorScreenState
                 ),
               ),
             ),
-
             if (_savedAudioPath != null) ...[
               const SizedBox(height: 14),
-
               Card(
                 child: Padding(
                   padding:
@@ -994,9 +1115,7 @@ class _PoetryEditorScreenState
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 8),
-
                       Text(
                         _savedAudioPath!,
                         maxLines: 2,
@@ -1007,9 +1126,7 @@ class _PoetryEditorScreenState
                           color: Colors.black54,
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
