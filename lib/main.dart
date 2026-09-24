@@ -181,6 +181,8 @@ class _PoetryEditorScreenState
     try {
       await _flutterTts.awaitSpeakCompletion(true);
 
+      await _flutterTts.awaitSynthCompletion(true);
+
       await _flutterTts.setSpeechRate(_speechRate);
       await _flutterTts.setVolume(_volume);
       await _flutterTts.setPitch(_pitch);
@@ -243,6 +245,7 @@ class _PoetryEditorScreenState
             return voice['name'] != null &&
                 voice['locale'] != null;
           }
+
           return false;
         }).toList();
 
@@ -493,8 +496,10 @@ class _PoetryEditorScreenState
 
     try {
       await _flutterTts.stop();
+
       await _forceUrduPakistanVoice();
       await _applyExpressionControls();
+
       await _flutterTts.speak(poetry);
     } catch (e) {
       if (mounted) {
@@ -544,88 +549,121 @@ class _PoetryEditorScreenState
       await _forceUrduPakistanVoice();
       await _applyExpressionControls();
 
-      final directory =
-          await getApplicationDocumentsDirectory();
+      /*
+       * Use the temporary/cache directory for TTS synthesis.
+       * Android TTS works more reliably with a normal temporary
+       * file and the official flutter_tts API.
+       */
+      final directory = await getTemporaryDirectory();
 
       final timestamp =
           DateTime.now().millisecondsSinceEpoch;
 
-      final temporaryPath =
-          '${directory.path}/poetry_voice_$timestamp.wav';
+      final fileName =
+          'poetry_voice_$timestamp.mp3';
 
+      final temporaryPath =
+          '${directory.path}/$fileName';
+
+      final audioFile = File(temporaryPath);
+
+      if (await audioFile.exists()) {
+        try {
+          await audioFile.delete();
+        } catch (_) {}
+      }
+
+      await _flutterTts.awaitSynthCompletion(true);
+
+      /*
+       * true = temporaryPath is a complete/full file path.
+       */
       final result = await _flutterTts.synthesizeToFile(
         poetry,
         temporaryPath,
+        true,
       );
 
       if (!mounted) {
         return;
       }
 
-      if (result == 1 || result == true) {
-        final audioFile = File(temporaryPath);
-
-        if (!await audioFile.exists()) {
-          throw Exception(
-            'Generated audio file was not found.',
-          );
-        }
-
-        final audioBytes =
-            await audioFile.readAsBytes();
-
-        final savedFile =
-            await PublicFileSaver().saveBytes(
-          bytes: audioBytes,
-          fileName:
-              'poetry_voice_$timestamp.wav',
-          mimeType: 'audio/wav',
-          subDir:
-              'AI Voice Poetry Studio',
+      if (result != 1 && result != true) {
+        throw Exception(
+          'Text-to-speech could not generate the audio file.',
         );
+      }
 
-        if (!mounted) {
-          return;
+      /*
+       * Wait for the Android TTS engine to actually create
+       * and finish writing the file.
+       */
+      bool fileReady = false;
+
+      for (int i = 0; i < 30; i++) {
+        if (await audioFile.exists()) {
+          final length = await audioFile.length();
+
+          if (length > 0) {
+            fileReady = true;
+            break;
+          }
         }
 
-        if (savedFile != null &&
-            savedFile.isSuccess) {
-          setState(() {
-            _savedAudioPath =
-                savedFile.path ??
-                savedFile.uri?.toString() ??
-                'Downloads/AI Voice Poetry Studio';
-          });
+        await Future.delayed(
+          const Duration(milliseconds: 300),
+        );
+      }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Audio saved to Downloads successfully.',
-              ),
-            ),
-          );
+      if (!fileReady) {
+        throw Exception(
+          'Generated audio file was not found after synthesis.',
+        );
+      }
 
-          try {
-            await audioFile.delete();
-          } catch (_) {}
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Audio could not be saved to Downloads.',
-              ),
-            ),
-          );
-        }
-      } else {
+      /*
+       * Save the generated local file directly to a
+       * user-visible Downloads subfolder.
+       */
+      final savedFile =
+          await PublicFileSaver().saveFile(
+        file: audioFile,
+        fileName: fileName,
+        mimeType: 'audio/mpeg',
+        subDir: 'AI Voice Poetry Studio',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (savedFile != null &&
+          savedFile.isSuccess) {
+        setState(() {
+          _savedAudioPath =
+              savedFile.path ??
+              savedFile.uri?.toString() ??
+              savedFile.fileName;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Audio could not be generated.',
+              'Audio saved to Downloads successfully.',
             ),
           ),
         );
+      } else {
+        throw Exception(
+          'Audio was generated but could not be saved to Downloads.',
+        );
       }
+
+      try {
+        if (await audioFile.exists()) {
+          await audioFile.delete();
+        }
+      } catch (_) {}
     } catch (e) {
       if (!mounted) {
         return;
@@ -648,31 +686,9 @@ class _PoetryEditorScreenState
   }
 
   Future<void> _playSavedAudio() async {
-    final path = _savedAudioPath;
+    final poetry = await _prepareSpeechText();
 
-    if (path == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please save the audio first.',
-          ),
-        ),
-      );
-
-      return;
-    }
-
-    final file = File(path);
-
-    if (!await file.exists()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Saved audio file was not found.',
-          ),
-        ),
-      );
-
+    if (poetry == null || poetry.isEmpty) {
       return;
     }
 
@@ -681,10 +697,6 @@ class _PoetryEditorScreenState
 
       await _forceUrduPakistanVoice();
       await _applyExpressionControls();
-
-      final poetry = _preparePoetryForSpeech(
-        _poetryController.text.trim(),
-      );
 
       await _flutterTts.speak(poetry);
     } catch (e) {
