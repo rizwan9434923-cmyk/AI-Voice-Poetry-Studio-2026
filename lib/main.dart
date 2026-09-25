@@ -106,15 +106,13 @@ class PoetryStudio extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              const Color(0xFF6B21A8),
+                          backgroundColor: const Color(0xFF6B21A8),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             vertical: 15,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         child: const Text(
@@ -145,8 +143,7 @@ class PoetryEditorScreen extends StatefulWidget {
       _PoetryEditorScreenState();
 }
 
-class _PoetryEditorScreenState
-    extends State<PoetryEditorScreen> {
+class _PoetryEditorScreenState extends State<PoetryEditorScreen> {
   final TextEditingController _descriptionController =
       TextEditingController();
 
@@ -180,14 +177,11 @@ class _PoetryEditorScreenState
   Future<void> _setupTts() async {
     try {
       await _flutterTts.awaitSpeakCompletion(true);
-
       await _flutterTts.awaitSynthCompletion(true);
 
       await _flutterTts.setSpeechRate(_speechRate);
       await _flutterTts.setVolume(_volume);
       await _flutterTts.setPitch(_pitch);
-
-      await _loadVoices();
 
       _flutterTts.setStartHandler(() {
         if (mounted) {
@@ -226,6 +220,8 @@ class _PoetryEditorScreenState
           );
         }
       });
+
+      await _loadVoices();
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -239,51 +235,54 @@ class _PoetryEditorScreenState
     try {
       final voices = await _flutterTts.getVoices;
 
-      if (voices is List) {
-        final filteredVoices = voices.where((voice) {
-          if (voice is Map) {
-            return voice['name'] != null &&
-                voice['locale'] != null;
+      if (voices is! List) {
+        if (mounted) {
+          setState(() {
+            _loadingVoices = false;
+          });
+        }
+        return;
+      }
+
+      final filteredVoices = voices.where((voice) {
+        if (voice is Map) {
+          return voice['name'] != null &&
+              voice['locale'] != null;
+        }
+
+        return false;
+      }).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _voices = filteredVoices;
+        _loadingVoices = false;
+      });
+
+      dynamic urduVoice;
+
+      for (final voice in _voices) {
+        if (voice is Map) {
+          final locale =
+              voice['locale']?.toString().toLowerCase() ?? '';
+
+          final name =
+              voice['name']?.toString().toLowerCase() ?? '';
+
+          if (locale == 'ur-pk' ||
+              locale.startsWith('ur-pk') ||
+              name.contains('ur-pk')) {
+            urduVoice = voice;
+            break;
           }
-
-          return false;
-        }).toList();
-
-        if (mounted) {
-          setState(() {
-            _voices = filteredVoices;
-            _loadingVoices = false;
-
-            dynamic urduVoice;
-
-            for (final voice in _voices) {
-              final locale =
-                  voice['locale']?.toString().toLowerCase() ?? '';
-
-              final name =
-                  voice['name']?.toString().toLowerCase() ?? '';
-
-              if (locale == 'ur-pk' ||
-                  locale.startsWith('ur-pk') ||
-                  name.contains('ur-pk')) {
-                urduVoice = voice;
-                break;
-              }
-            }
-
-            if (urduVoice != null) {
-              _selectedVoice = urduVoice;
-            } else if (_voices.isNotEmpty) {
-              _selectedVoice = _voices.first;
-            }
-          });
         }
-      } else {
-        if (mounted) {
-          setState(() {
-            _loadingVoices = false;
-          });
-        }
+      }
+
+      if (urduVoice != null) {
+        await _selectVoice(urduVoice);
+      } else if (_voices.isNotEmpty) {
+        await _selectVoice(_voices.first);
       }
     } catch (_) {
       if (mounted) {
@@ -300,9 +299,7 @@ class _PoetryEditorScreenState
     final name = voice['name'];
     final locale = voice['locale'];
 
-    if (name == null || locale == null) {
-      return;
-    }
+    if (name == null || locale == null) return;
 
     try {
       await _flutterTts.setVoice({
@@ -405,8 +402,7 @@ class _PoetryEditorScreenState
         description.contains('dard') ||
         description.contains('deep')) {
       rate = rate.clamp(0.25, 0.40).toDouble();
-      pitch =
-          (pitch - 0.08).clamp(0.50, 1.50).toDouble();
+      pitch = (pitch - 0.08).clamp(0.50, 1.50).toDouble();
     }
 
     if (description.contains('soft')) {
@@ -417,8 +413,7 @@ class _PoetryEditorScreenState
         description.contains('excited') ||
         description.contains('purjosh')) {
       rate = rate.clamp(0.45, 0.65).toDouble();
-      pitch =
-          (pitch + 0.05).clamp(0.50, 1.50).toDouble();
+      pitch = (pitch + 0.05).clamp(0.50, 1.50).toDouble();
     }
 
     if (description.contains('calm')) {
@@ -436,8 +431,7 @@ class _PoetryEditorScreenState
     }
 
     if (direction.contains('deep')) {
-      pitch =
-          (pitch - 0.08).clamp(0.50, 1.50).toDouble();
+      pitch = (pitch - 0.08).clamp(0.50, 1.50).toDouble();
     }
 
     if (direction.contains('soft')) {
@@ -490,9 +484,7 @@ class _PoetryEditorScreenState
   Future<void> _generateVoice() async {
     final poetry = await _prepareSpeechText();
 
-    if (poetry == null || poetry.isEmpty) {
-      return;
-    }
+    if (poetry == null || poetry.isEmpty) return;
 
     try {
       await _flutterTts.stop();
@@ -509,9 +501,7 @@ class _PoetryEditorScreenState
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Voice error: $e',
-            ),
+            content: Text('Voice error: $e'),
           ),
         );
       }
@@ -531,13 +521,9 @@ class _PoetryEditorScreenState
   Future<void> _saveAudio() async {
     final poetry = await _prepareSpeechText();
 
-    if (poetry == null || poetry.isEmpty) {
-      return;
-    }
+    if (poetry == null || poetry.isEmpty) return;
 
-    if (_isSavingAudio) {
-      return;
-    }
+    if (_isSavingAudio) return;
 
     setState(() {
       _isSavingAudio = true;
@@ -549,11 +535,6 @@ class _PoetryEditorScreenState
       await _forceUrduPakistanVoice();
       await _applyExpressionControls();
 
-      /*
-       * Use the temporary/cache directory for TTS synthesis.
-       * Android TTS works more reliably with a normal temporary
-       * file and the official flutter_tts API.
-       */
       final directory = await getTemporaryDirectory();
 
       final timestamp =
@@ -575,18 +556,13 @@ class _PoetryEditorScreenState
 
       await _flutterTts.awaitSynthCompletion(true);
 
-      /*
-       * true = temporaryPath is a complete/full file path.
-       */
       final result = await _flutterTts.synthesizeToFile(
         poetry,
         temporaryPath,
         true,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       if (result != 1 && result != true) {
         throw Exception(
@@ -594,10 +570,6 @@ class _PoetryEditorScreenState
         );
       }
 
-      /*
-       * Wait for the Android TTS engine to actually create
-       * and finish writing the file.
-       */
       bool fileReady = false;
 
       for (int i = 0; i < 30; i++) {
@@ -621,10 +593,6 @@ class _PoetryEditorScreenState
         );
       }
 
-      /*
-       * Save the generated local file directly to a
-       * user-visible Downloads subfolder.
-       */
       final savedFile =
           await PublicFileSaver().saveFile(
         file: audioFile,
@@ -633,12 +601,9 @@ class _PoetryEditorScreenState
         subDir: 'AI Voice Poetry Studio',
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      if (savedFile != null &&
-          savedFile.isSuccess) {
+      if (savedFile != null && savedFile.isSuccess) {
         setState(() {
           _savedAudioPath =
               savedFile.path ??
@@ -665,9 +630,7 @@ class _PoetryEditorScreenState
         }
       } catch (_) {}
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -688,9 +651,7 @@ class _PoetryEditorScreenState
   Future<void> _playSavedAudio() async {
     final poetry = await _prepareSpeechText();
 
-    if (poetry == null || poetry.isEmpty) {
-      return;
-    }
+    if (poetry == null || poetry.isEmpty) return;
 
     try {
       await _flutterTts.stop();
@@ -733,8 +694,7 @@ class _PoetryEditorScreenState
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
               'Voice Description',
@@ -752,17 +712,14 @@ class _PoetryEditorScreenState
             ),
             const SizedBox(height: 12),
             TextField(
-              controller:
-                  _descriptionController,
+              controller: _descriptionController,
               maxLines: 3,
               decoration: InputDecoration(
                 hintText:
                     'Example: Sad, deep and emotional voice...',
-                prefixIcon:
-                    const Icon(Icons.description),
+                prefixIcon: const Icon(Icons.description),
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 alignLabelWithHint: true,
               ),
@@ -777,15 +734,12 @@ class _PoetryEditorScreenState
             ),
             const SizedBox(height: 12),
             TextField(
-              controller:
-                  _poetryController,
+              controller: _poetryController,
               maxLines: 10,
               decoration: InputDecoration(
-                hintText:
-                    'Write your poetry here...',
+                hintText: 'Write your poetry here...',
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 alignLabelWithHint: true,
               ),
@@ -807,8 +761,7 @@ class _PoetryEditorScreenState
             ),
             const SizedBox(height: 12),
             TextField(
-              controller:
-                  _voiceDirectionController,
+              controller: _voiceDirectionController,
               maxLines: 4,
               decoration: InputDecoration(
                 hintText:
@@ -817,8 +770,7 @@ class _PoetryEditorScreenState
                   Icons.record_voice_over,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 alignLabelWithHint: true,
               ),
@@ -834,24 +786,20 @@ class _PoetryEditorScreenState
             const SizedBox(height: 12),
             Card(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment.stretch,
                   children: [
                     const Row(
                       children: [
-                        Icon(
-                          Icons.record_voice_over,
-                        ),
+                        Icon(Icons.record_voice_over),
                         SizedBox(width: 10),
                         Text(
                           'Voice Selection',
                           style: TextStyle(
                             fontSize: 18,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
@@ -859,17 +807,14 @@ class _PoetryEditorScreenState
                     const SizedBox(height: 12),
                     if (_loadingVoices)
                       const Padding(
-                        padding:
-                            EdgeInsets.all(12),
+                        padding: EdgeInsets.all(12),
                         child: Center(
-                          child:
-                              CircularProgressIndicator(),
+                          child: CircularProgressIndicator(),
                         ),
                       )
                     else if (_voices.isEmpty)
                       const Padding(
-                        padding:
-                            EdgeInsets.all(8),
+                        padding: EdgeInsets.all(8),
                         child: Text(
                           'No TTS voices are available on this device.',
                           style: TextStyle(
@@ -881,34 +826,25 @@ class _PoetryEditorScreenState
                       DropdownButtonFormField<dynamic>(
                         value: _selectedVoice,
                         isExpanded: true,
-                        decoration:
-                            InputDecoration(
-                          border:
-                              OutlineInputBorder(
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
                             borderRadius:
-                                BorderRadius.circular(
-                              12,
-                            ),
+                                BorderRadius.circular(12),
                           ),
                         ),
                         items: _voices.map((voice) {
                           final name =
-                              voice['name']
-                                      ?.toString() ??
+                              voice['name']?.toString() ??
                                   'Unknown Voice';
 
                           final locale =
-                              voice['locale']
-                                      ?.toString() ??
-                                  '';
+                              voice['locale']?.toString() ?? '';
 
-                          return DropdownMenuItem<
-                              dynamic>(
+                          return DropdownMenuItem<dynamic>(
                             value: voice,
                             child: Text(
                               '$name ($locale)',
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           );
                         }).toList(),
@@ -923,29 +859,23 @@ class _PoetryEditorScreenState
                       'Speed',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.slow_motion_video,
-                        ),
+                        const Icon(Icons.slow_motion_video),
                         Expanded(
                           child: Slider(
                             min: 0.20,
                             max: 0.80,
                             divisions: 12,
-                            value:
-                                _speechRate,
-                            onChanged:
-                                _updateSpeechRate,
+                            value: _speechRate,
+                            onChanged: _updateSpeechRate,
                           ),
                         ),
                         Text(
-                          _speechRate
-                              .toStringAsFixed(2),
+                          _speechRate.toStringAsFixed(2),
                         ),
                       ],
                     ),
@@ -954,28 +884,23 @@ class _PoetryEditorScreenState
                       'Pitch',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.graphic_eq,
-                        ),
+                        const Icon(Icons.graphic_eq),
                         Expanded(
                           child: Slider(
                             min: 0.50,
                             max: 1.50,
                             divisions: 20,
                             value: _pitch,
-                            onChanged:
-                                _updatePitch,
+                            onChanged: _updatePitch,
                           ),
                         ),
                         Text(
-                          _pitch
-                              .toStringAsFixed(2),
+                          _pitch.toStringAsFixed(2),
                         ),
                       ],
                     ),
@@ -984,23 +909,19 @@ class _PoetryEditorScreenState
                       'Volume',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.volume_up,
-                        ),
+                        const Icon(Icons.volume_up),
                         Expanded(
                           child: Slider(
                             min: 0.0,
                             max: 1.0,
                             divisions: 10,
                             value: _volume,
-                            onChanged:
-                                _updateVolume,
+                            onChanged: _updateVolume,
                           ),
                         ),
                         Text(
@@ -1017,23 +938,15 @@ class _PoetryEditorScreenState
               child: Column(
                 children: const [
                   ListTile(
-                    leading: Icon(
-                      Icons.auto_awesome,
-                    ),
-                    title: Text(
-                      'Natural / Emotional',
-                    ),
+                    leading: Icon(Icons.auto_awesome),
+                    title: Text('Natural / Emotional'),
                     subtitle: Text(
                       'AI Natural Voice - Next Phase',
                     ),
                   ),
                   ListTile(
-                    leading: Icon(
-                      Icons.threed_rotation,
-                    ),
-                    title: Text(
-                      '3D / Spatial Voice',
-                    ),
+                    leading: Icon(Icons.threed_rotation),
+                    title: Text('3D / Spatial Voice'),
                     subtitle: Text(
                       'Spatial audio - Next Phase',
                     ),
@@ -1046,31 +959,23 @@ class _PoetryEditorScreenState
               height: 54,
               child: ElevatedButton.icon(
                 onPressed:
-                    _isSpeaking ||
-                            _isSavingAudio
+                    _isSpeaking || _isSavingAudio
                         ? null
                         : _generateVoice,
-                icon: const Icon(
-                  Icons.play_arrow,
-                ),
+                icon: const Icon(Icons.play_arrow),
                 label: const Text(
                   'Generate Voice',
                   style: TextStyle(
                     fontSize: 17,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                style:
-                    ElevatedButton.styleFrom(
+                style: ElevatedButton.styleFrom(
                   backgroundColor:
                       const Color(0xFF6B21A8),
-                  foregroundColor:
-                      Colors.white,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1080,18 +985,13 @@ class _PoetryEditorScreenState
               height: 54,
               child: OutlinedButton.icon(
                 onPressed:
-                    _isSpeaking
-                        ? _stopVoice
-                        : null,
-                icon: const Icon(
-                  Icons.stop,
-                ),
+                    _isSpeaking ? _stopVoice : null,
+                icon: const Icon(Icons.stop),
                 label: const Text(
                   'Stop Voice',
                   style: TextStyle(
                     fontSize: 17,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -1101,43 +1001,32 @@ class _PoetryEditorScreenState
               height: 54,
               child: ElevatedButton.icon(
                 onPressed:
-                    _isSavingAudio
-                        ? null
-                        : _saveAudio,
+                    _isSavingAudio ? null : _saveAudio,
                 icon: _isSavingAudio
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child:
-                            CircularProgressIndicator(
+                        child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color:
-                              Colors.white,
+                          color: Colors.white,
                         ),
                       )
-                    : const Icon(
-                        Icons.save_alt,
-                      ),
+                    : const Icon(Icons.save_alt),
                 label: Text(
                   _isSavingAudio
                       ? 'Saving Audio...'
                       : 'Save Audio',
                   style: const TextStyle(
                     fontSize: 17,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                style:
-                    ElevatedButton.styleFrom(
+                style: ElevatedButton.styleFrom(
                   backgroundColor:
                       const Color(0xFF2563EB),
-                  foregroundColor:
-                      Colors.white,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -1146,24 +1035,21 @@ class _PoetryEditorScreenState
               const SizedBox(height: 14),
               Card(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     children: [
                       const Row(
                         children: [
                           Icon(
                             Icons.check_circle,
-                            color:
-                                Colors.green,
+                            color: Colors.green,
                           ),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Audio Saved Successfully',
                               style: TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
@@ -1173,22 +1059,17 @@ class _PoetryEditorScreenState
                       Text(
                         _savedAudioPath!,
                         maxLines: 2,
-                        overflow:
-                            TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
-                          color:
-                              Colors.black54,
+                          color: Colors.black54,
                         ),
                       ),
                       const SizedBox(height: 10),
                       SizedBox(
-                        width:
-                            double.infinity,
-                        child:
-                            OutlinedButton.icon(
-                          onPressed:
-                              _playSavedAudio,
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _playSavedAudio,
                           icon: const Icon(
                             Icons.play_arrow,
                           ),
